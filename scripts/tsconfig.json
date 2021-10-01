@@ -1,0 +1,15 @@
+// This file is just to help have correct typing (Jest, not Mocha) on *.spec.cjs.
+// I don't know how to remove the redundant error:
+// "No inputs were found in config file"
+{
+  "compilerOptions": {
+    "lib": ["ES2020"],
+    "module": "ES2020",
+    "moduleResolution": "node",
+    "target": "ES2020",
+    "allowJs": true,
+    // The only important thing in this file.
+    "types": ["jest"]
+  },
+  "include": ["**/*.cjs", "**/*.mjs"]
+}

@@ -1,0 +1,125 @@
+name: On Build Amplify
+
+on:
+  repository_dispatch:
+    types: [build_amplify]
+env:
+  BUNDLE_DEVELOP_PATH: ./.next/analyze/develop
+jobs:
+  amplify-comment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "14"
+      # Rather than installing everything, just install the stuff we need.
+      - name: Install NPM dependencies
+        run: yarn workspace @org-name/project-web-scripts install
+
+      - name: Prepare analyze folder
+        run: mkdir -p ./.next/analyze
+
+      - name: Write bundle file
+        # Have to escape the initial echo but we can remove the `\`s with sed
+        run: echo $BUNDLE_DETAILS | sed -e 's/\\//g' > ./.next/analyze/bundle.json
+        env:
+          BUNDLE_DETAILS: ${{ github.event.client_payload.bundle_details }}
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v2
+        with:
+          name: bundle
+          # It would be nice to pass this in from Amplify:
+          # .next/analyze/client.html
+          path: |
+            .next/analyze/bundle.json
+
+      - name: Download develop JSON
+        uses: dawidd6/action-download-artifact@v2
+        if: ${{ success() && github.event.client_payload.is_pr == 'yes' }}
+        continue-on-error: true
+        with:
+          workflow: on-amplify-post-build.yml
+          branch: develop
+          path: ${{ env.BUNDLE_DEVELOP_PATH }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        if: ${{ success() && github.event.client_payload.is_pr == 'yes' }}
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - id: get-pr-number
+        if: ${{ success() && github.event.client_payload.is_pr == 'yes' }}
+        run: |
+          pr_number=$(echo ${{ github.event.client_payload.aws_branch }} | cut -d- -f2)
+          echo "::set-output name=pr-number::$pr_number"
+
+      - name: "Run amplify-write-details-file.mjs"
+        if: ${{ success() && github.event.client_payload.is_pr == 'yes' }}
+        run: |
+          AMPLIFY_APP_ID=${{ github.event.client_payload.app_id }} \
+          AWS_BRANCH_NAME=${{ github.event.client_payload.aws_branch }} \
+          AWS_ACCOUNT_ID=${{ github.event.client_payload.aws_account_id }} \
+          node ./scripts/amplify-write-details-file.mjs
+
+      - id: read_amplify_details
+        if: ${{ success() && github.event.client_payload.is_pr == 'yes' }}
+        run: |
+          content=`cat ./tmp/amplify-details.json`
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=amplify_details::$content"
+
+      - name: Compare bundle size
+        if: ${{ success() && github.event.client_payload.is_pr == 'yes' }}
+        id: get_bundle_comparison
+        run: |
+          if [ -f "${{ env.BUNDLE_DEVELOP_PATH }}/bundle/bundle.json" ]; then
+            node --experimental-json-modules scripts/compare-bundles.mjs
+            content=`cat .next/analyze/bundle-comparison.txt`
+            # the following lines are only required for multi line json
+            content="${content//'%'/'%25'}"
+            content="${content//$'\n'/'%0A'}"
+            content="${content//$'\r'/'%0D'}"
+            # end of optional handling for multi line json
+          else
+            content="Not available"
+          fi
+          echo "::set-output name=bundle_comparison::$content"
+
+      - name: Find Comment
+        uses: peter-evans/find-comment@v1
+        if: ${{ success() && github.event.client_payload.is_pr == 'yes' }}
+        id: fc
+        with:
+          issue-number: ${{ steps.get-pr-number.outputs.pr-number }}
+          comment-author: "github-actions[bot]"
+          body-includes: "Amplify: https://"
+
+      - name: Create comment
+        uses: peter-evans/create-or-update-comment@v1
+        if: ${{ success() && github.event.client_payload.is_pr == 'yes' }}
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ steps.get-pr-number.outputs.pr-number }}
+          edit-mode: replace
+          body: |
+            Amplify: https://${{ github.event.client_payload.aws_branch }}.${{ github.event.client_payload.pr_preview_domain }} :sparkles:
+            Build logs: https://console.aws.amazon.com/amplify/home?region=us-east-1#/${{ github.event.client_payload.app_id }}/${{ github.event.client_payload.aws_branch }} :hammer:
+
+            ${{steps.get_bundle_comparison.outputs.bundle_comparison}}
+
+            <details>
+              <summary>More details (do not modify)</summary>
+
+              ```json
+              ${{steps.read_amplify_details.outputs.amplify_details}}
+              ```
+            </details>

@@ -1,0 +1,74 @@
+# dependencies
+node_modules
+/.pnp
+.pnp.js
+
+# Yarn Berry with Zero-Installs
+**/.yarn/*
+!**/.yarn/cache
+!**/.yarn/patches
+!**/.yarn/plugins
+!**/.yarn/releases
+!**/.yarn/sdks
+!**/.yarn/versions
+
+# testing
+/coverage
+
+# production
+/build
+
+# TypeScript incremental compilation cache
+*.tsbuildinfo
+
+# next.js
+/.next/
+/out/
+/public/robots.txt
+/public/sitemap.xml
+
+# misc
+.DS_Store
+.env*.local
+
+/tmp
+.clinic
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ESLint
+.eslintcache
+
+# Cypress.io
+cypress.env.json
+cypress.local.json
+cypress/reports/
+cypress/snapshots/actual/
+cypress/snapshots/diff/
+cypress/videos/
+
+*.orig
+
+.idea
+
+# vercel - probably not necessary since we won' deploy to vercel.
+.vercel
+
+#amplify
+amplify/\#current-cloud-backend
+amplify/.config/local-*
+amplify/logs
+amplify/mock-data
+amplify/backend/amplify-meta.json
+amplify/backend/awscloudformation
+amplify/backend/.temp
+aws-exports.js
+awsconfiguration.json
+amplifyconfiguration.json
+amplifyconfiguration.dart
+amplify-build-config.json
+amplify-gradle-config.json
+amplifytools.xcconfig
+.secret-*

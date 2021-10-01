@@ -1,0 +1,45 @@
+name: Amplify clean up
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  amplify-cleanup:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.base.ref == 'develop' || github.event.pull_request.base.ref == 'master' }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "14"
+      # Rather than installing everything, just install the stuff we need.
+      - name: Install NPM dependencies
+        run: yarn workspace @org-name/project-web-scripts install
+
+      - name: Find Comment
+        uses: peter-evans/find-comment@v1
+        id: fc
+        with:
+          issue-number: ${{ github.event.number }}
+          comment-author: github-actions[bot]
+          body-includes: "Amplify: https://"
+
+      - name: Process comment
+        if: success() && ${{ steps.fc.outputs.comment-id }} != 0
+        # The sed -n '/```json/,/```/p' grabs the content of the details including ```json and the trailing ```
+        # The sed '1d;$d' removes the first and last line, returning only the final JSON
+        run: |
+          echo '${{ steps.fc.outputs.comment-body }}' | sed -n '/```json/,/```/p' | sed '1d;$d' > comment-body.json
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        if: success() && ${{ steps.fc.outputs.comment-id }} != 0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: "Run amplify-delete-resources.mjs"
+        if: success() && ${{ steps.fc.outputs.comment-id }} != 0
+        run: node ./scripts/amplify-delete-resources.mjs
