@@ -1,0 +1,25 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        # The scripting library zx requires Node 14.
+        - nvm install 14
+        - nvm use 14
+        - yarn install
+    build:
+      commands:
+        - yarn build
+    postBuild:
+      commands:
+        - mkdir -p .next/analyze
+        - node --experimental-json-modules ./scripts/create-bundle-details.mjs
+        - cd ./scripts && node --experimental-json-modules ./on-post-amplify-build.mjs
+  artifacts:
+    baseDirectory: .next
+    files:
+      - "**/*"
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/*
